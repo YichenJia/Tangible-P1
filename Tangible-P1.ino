@@ -35,22 +35,21 @@ int lastReading = 0;
 int moterPin = 1;
 int speakerPin = 2;
 
-int ZeroWeight = A; //FRS Reading when nothing is on top of it
-int BottleWeight = B; //FRS Reading when empty bottle is on it
+int ZeroWeight = 0; //FRS Reading when nothing is on top of it
+int BottleWeight = 600; //FRS Reading when empty bottle is on it
 
-int BeforeLiftingBottle;
-int Difference = 0; // Used to record differences in water-level change
+int fsrBeforeLifting; // Used to record differences in water-level change
 
-int uncertaintyValue = D; // For adjusting sensitivity of fsr
+int uncertaintyValue = 20; // For adjusting sensitivity of fsr
 String State = "Rest"; //1 = rest, 2 = action, start with rest state
-
 int delayTime = 1000; // TODO: find appropriate interval
+int warningTime = 30000; // Time the bottle can be abscent from the base before start alarm
 
-void setup(void) {
+void setup(void) { 
   Serial.begin(9600); // some number base on calibration of our water bottle weight)  
 }
 
-
+//CHANGES!!!
 void loop(void) {
 
   float CommunicationFromAnother = analogRead(1); // or whatever pin we end up using
