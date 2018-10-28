@@ -1,144 +1,174 @@
 
-// pseudo code
-
-/*
- 
-Notes: This code is setup for direct-com (jump wires + pins) between arduinos. For xBees please use the below codes:
-#include <SoftwareSerial.h> // at the beginning
-SoftwareSerial XBee(2, 3); // XBeeTX(toArduinoRX), XBeeRX(toArduinoTX)
-void setup() { XBee.begin(9600); }
-void loop()
-{
-  if (Serial.available())
-  { // If data comes in from serial monitor, send it out to XBee
-    XBee.write(Serial.read());
-  }
-  if (XBee.available())
-  { // If data comes in from XBee, send it out to serial monitor
-    Serial.write(XBee.read());
-  }
-}
-https://learn.sparkfun.com/tutorials/xbee-shield-hookup-guide/example-communication-test
-*/
-
-
 // Variables
 
-int fsrPin = 0; // Set initial value
+#include <SoftwareSerial.h>
+#include "pitches.h"
+
+SoftwareSerial XBee(2, 3); // RX, TX
+
+int fsrInputPin = 0;
 int fsrReading; // Force Resistor Reading
-int lastReading = 0;
+int lastReading = 0;//Used for comparsion
 
-int moterPin = 1;
-int speakerPin = 2;
+const int motorOutputPin = 1;
+const int speakerOutputPin = 2;
 
-int ZeroWeight = 0; //FRS Reading when nothing is on top of it
-int BottleWeight = 600; //FRS Reading when empty bottle is on it
-
-int fsrBeforeLifting; // Used to record differences in water-level change
-
+const int ZeroWeight = 0; //FRS Reading when nothing is on top of it
+const int BottleWeight = 600; //FRS Reading when empty bottle is on it
 int uncertaintyValue = 20; // For adjusting sensitivity of fsr
+
+int fsrBeforeLifting; // Used to record differences before and after one lifts bottle
+
 String State = "Rest"; //1 = rest, 2 = action, start with rest state
 int delayTime = 1000; // TODO: find appropriate interval
 int warningTime = 30000; // Time the bottle can be abscent from the base before start alarm
-int REST = 1
-int OFF_BASE = 2
+int Timer;
 
-int action =0 // nothing
-int DRANK_WATER =0
-int ADDED_WATER =1
+const char FILLING_WATER = 'l';
+const char DRINKING_WATER = 'd';
+const char FAN = 'f';
 
 void setup(void) { 
-  Serial.begin(9600); // some number base on calibration of our water bottle weight)  
+   XBee.begin(9600);
+  Serial.begin(9600);  
+  pinMode(motorOutputPin, OUTPUT);
+  pinMode(speakerOutputPin, OUTPUT);
 }
 
-void evaluateDifference(last, current) {
-  if last > current + uncertaintyValue {
-    return DRANK_WATER
-  } else if last + uncertaintyValue < current
-  return ADDED_WATER // assumption
-
-}
-
-
-void checkForChanges() {
-
-  // is there a difference between LAST_READING and CURRENT_READING
-  action = evaluateDifference(LAST_READING, CURRENT_READING)
-  // if so, make local response, send notification to remote base
-    // is LAST_READING greater than CURRENT? if so, water has been added
-     // is LAST_READING less than CURRENT? if so water has been removed (drunk)
-    if action == DRANK_WATER {
-      // send notification
-      
-    } else {
-      // send a different notification
+int dataOutgoing(int mode) {
+    if (XBee.available()) { // If data comes in from XBee, send it to serial monitor
+      XBee.write(mode);
     }
-  // has TIMEOUT occurred, if so warn user
-  
-// if bottle is not on base, send notification to remote base 
-
-  
 }
 
-//CHANGES!!!
+void checkForRemote(){
+  dataIncoming();
+}
+
 void loop(void) {
-
-  float CommunicationFromAnother = analogRead(1); // or whatever pin we end up using
-
-
-// Writing communications
+    // Writing communications
     Serial.println("running......"+delayTime);
-    fsrReading = analogRead(fsrPin); // when we are testing with inputs/outputs on one arduino
-    
-// If the fsrReading changed from last time: if the bottle has been lifted up
-/*
-  if ((fsrReading < lastReading - uncertaintyValue) && (State == "Rest")) {
-    //Change to active state
-    State = "Active";
-    //Record the fsrReading before the bottle has been lifted
-    int fsrBeforeLifting = lastReading;
-    //fan start running
-    
-  } else {
-    State = "Rest";
-    lastReading = fsrReading; // Update fsr Reading from another arduino
-  }
+    fsrReading = analogRead(fsrInputPin); // when we are testing with inputs/outputs on one arduino
+    Serial.print("Analog reading = ");
+    Serial.println(fsrReading);
 
-  
+    if (fsrReading != 0 && lastReading != 0){ 
+      //ignore the starting and ending when lastReading is not updated yet
+      
+      int changesCheck = checkForLocalChanges(fsrReading,lastReading);
+      if (changesCheck != -1){
+        //changes in weight are detected
+        
+        if (State == "Active") {
+          startFans();
+          fsrBeforeLifting = changesCheck;
 
-  if (fsrReading < ZeroWeight - uncertaintyValue && State = 1){
-    // wait 3 min
-    // timer
-    // insert code for playing notification sound for missing bottle
-  }
-  
-// Activated State
-  if (fsrReading <= ZeroWeight + uncertaintyValue) {
-    analogWrite(1, spin); // Write.fanStateSignal to other arduino to start vortex;
-    State = 2;
+        } else if (State == "Rest"){
+          Timer = 0;
+          stopFans();
+          evaluateDifference(fsrReading,fsrBeforeLifting);
+        }
+        
+      }
+
+      checkForRemote();
+      
     }
-
-  if (fsrReading > ZeroWeight + uncertaintyValue && State = 2){
-    int Difference = analogRead(fsrPin) - BeforeLiftingBottle;
-
-    if (Difference > 0){ // if drank
-      analogWrite(1, drank); // Write.speakerStateSignal to other arduino to play <drinking> sound till finished;
-      State = 1; // return resting
-    } else {
-      analogWrite(1, poured); // Write.speakerStateSignal to other arduino to play <pouring> sound till finished;
-      State = 1; // return resting
-    }
+    
     delay(delayTime);//TODO edit delay time
     lastReading = fsrReading;
-*/
-// Receiving communications
-  if ( CommunicationFromAnother = spin){
-    // insert code for Motor-On (using transistors / resistors or whichever method is available)
-  } else if ( CommunicationFromAnother = drank ) {
-    // insert code for playing pouring sound
-  } else if ( CommunicationFromAnother = drank ) {
-    // insert code for playing pouring sound
+    Timer = Timer + delayTime;
+    if (Timer >= warningTime && State == "Active") {
+       //TODO: Bottle hasn't been put back, play warning sound 
+    }
+}
+
+int checkForLocalChanges(int current, int last) {
+  if (current > last + uncertaintyValue) {
+    State = "Rest"; // bottle put back
+    return last;
+  } else if (current < last - uncertaintyValue){
+    State = "Active"; //bottle took off
+    return current;
   } else {
-    // everything is off  
+    return -1;
   }
+}
+
+void evaluateDifference(int current, int last) {
+  // is there a difference between fsrBeforeLifting and current
+  
+  if (last < current) {
+    
+     makeFillingSound();
+     dataOutgoing(FILLING_WATER);
+    
+  } else if (last > current) {
+    makeDrinkingSound();
+    dataOutgoing(DRINKING_WATER);
+  }
+
+}
+
+void startFans()  {
+  digitalWrite(motorOutputPin, HIGH);
+  //delay(5000);
+  //pinMode(motorOutputPin, LOW);
+  dataOutgoing(FAN);
+}
+
+void stopFans()  { // maybe we just have the fans stop asynchronously...?
+  digitalWrite(motorOutputPin, LOW);
+  //delay(5000);
+  //pinMode(motorOutputPin, LOW);
+  //dataOutgoing(FAN);
+}
+
+
+
+
+int dataIncoming() {
+    if (XBee.available()) { // If data comes in from XBee, read it
+      char c = XBee.read();
+      switch (c) {
+      case DRINKING_WATER:      // If received 'w'
+        stopFans();
+        makeDrinkingSound(); // Write analog/digital pin
+        break;
+      case FILLING_WATER:      // If received 'w'
+        stopFans();
+        makeFillingSound(); // Write analog pin
+        break;
+      case FAN:
+        startFans();
+        break;
+      }
+      
+    }
+} 
+
+
+void makeDrinkingSound() {
+
+  // Print a message to let the control know of our intentions:
+  XBee.print("Drinking sound ");
+  XBee.print(speakerOutputPin);
+  XBee.print(" to ");
+  XBee.println("HIGH");
+
+  tone(speakerOutputPin, NOTE_B0, 300);
+  noTone(speakerOutputPin);
+
+}
+
+void makeFillingSound() {
+
+  tone(speakerOutputPin, NOTE_A2, 300);
+  noTone(speakerOutputPin);
+
+}
+
+
+
+
 
